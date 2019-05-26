@@ -37,47 +37,57 @@ contract ApproveAndCallFallBack {
 }
 
 contract Owned {
-    address public owner;
+    address public chairperson;
     address public newOwner;
+    address public nextInLine;
 
     event OwnershipTransferred(address indexed _from, address indexed _to);
 
-    constructor() public {
-        owner = msg.sender;
+    constructor(address _chairperson, address _nextInLine) public {
+        require (msg.sender != _chairperson);
+        chairperson = _chairperson;
+        nextInLine = _nextInLine;
     }
 
-    modifier onlyOwner {
-        require(msg.sender == owner);
+    modifier onlyChairperson {
+        require(msg.sender == chairperson);
         _;
     }
 
-    function transferOwnership(address _newOwner) public onlyOwner {
+    function transferOwnership(address _newOwner) public onlyChairperson {
         newOwner = _newOwner;
     }
+    
     function acceptOwnership() public {
         require(msg.sender == newOwner);
-        emit OwnershipTransferred(owner, newOwner);
-        owner = newOwner;
+        emit OwnershipTransferred(chairperson, newOwner);
+        chairperson = newOwner;
         newOwner = address(0);
     }
-}
-
-contract Foundation {
     
-    modifier onlyFoundation() {  
-        require(isOwner[msg.sender]);
-        _;
+    function selectNextInLine(address _ad) public {
+        require(msg.sender == nextInLine);
+        nextInLine = _ad;
     }
     
+    
+}
+
+contract Foundation is Owned {
+    
+    modifier onlyFoundation() {  
+        require(isFoundation[msg.sender]);
+        _;
+    }
 
     constructor(address _owner1, address _owner2) public {
-        isOwner[msg.sender] = true;
-        isOwner[_owner1] = true;
-        isOwner[_owner2] = true;
+        isFoundation[msg.sender] = true;
+        isFoundation[_owner1] = true;
+        isFoundation[_owner2] = true;
         numberOfVoters = 3;
     }
 
-    mapping(address => bool) isOwner;
+    mapping(address => bool) isFoundation;
     mapping(address => mapping(address => bool)) hasVotedToAdd;
     mapping(address => mapping(address => bool)) hasVotedToRemove;
     mapping(address => uint8) public votesToAdd;
@@ -90,7 +100,7 @@ contract Foundation {
     function voteToAdd(address _ad) public onlyFoundation {
         require(hasVotedToAdd[msg.sender][_ad] == false,
         "this");
-        require(isOwner[_ad] == false,
+        require(isFoundation[_ad] == false,
         "that");
         hasVotedToAdd[msg.sender][_ad] = true;
         if (votesToAdd[_ad] == uint8(0)) {
@@ -105,7 +115,7 @@ contract Foundation {
     
     function voteToRemove(address _ad) public onlyFoundation {
         require(hasVotedToRemove[msg.sender][_ad] == false);
-        require(isOwner[_ad]);
+        require(isFoundation[_ad]);
         hasVotedToRemove[msg.sender][_ad] = true;
         if (votesToRemove[_ad] == uint8(0)) {
             addressesVotedOn.push(_ad);
@@ -133,7 +143,7 @@ contract Foundation {
     function enoughVotesToAdd(address _ad) internal {
         if (votesToAdd[_ad] * 2 > numberOfVoters) {
             numberOfVoters += 1;
-            isOwner[_ad] = true;
+            isFoundation[_ad] = true;
         }
         else { }
     }
@@ -141,14 +151,21 @@ contract Foundation {
     function enoughVotesToRemove(address _ad) internal {
         if (votesToRemove[_ad] * 2 > numberOfVoters) {
             numberOfVoters -= 1;
-            isOwner[_ad] = false;
+            isFoundation[_ad] = false;
             removeOwnerVotes(_ad);
+            if (_ad == chairperson) {
+                chairperson = nextInLine;
+                nextInLine = msg.sender;
+            }
+            else if (_ad == nextInLine) {
+                nextInLine = msg.sender;
+            }
         }
         else { }
     }
     
     function getOwners(address _ad) external view returns(bool) {
-        return isOwner[_ad];
+        return isFoundation[_ad];
     }
     
     
@@ -218,7 +235,13 @@ contract TiersOfConversion {
     
 }
 
-contract SocialToken is ERC20Interface, Owned, Foundation, TiersOfConversion {
+contract SocialToken is ERC20Interface, Foundation, TiersOfConversion {
+    
+    modifier onlyChairperson() {  
+        require(msg.sender == chairperson);
+        _;
+    }
+    
     using SafeMath for uint;
 
     string public symbol;
@@ -230,14 +253,15 @@ contract SocialToken is ERC20Interface, Owned, Foundation, TiersOfConversion {
     mapping(address => uint) balances;
     mapping(address => mapping(address => uint)) allowed;
     mapping(address => bool) whitelisted;
+    mapping(address => bool) blacklisted;
 
     constructor() public {
         symbol = "SOCIAL";
         name = "Social Token";
         decimals = 18;
         _totalSupply = 1000000 * 10**uint(decimals);
-        balances[owner] = _totalSupply;
-        emit Transfer(address(0), owner, _totalSupply);
+        balances[chairperson] = _totalSupply;
+        emit Transfer(address(0), chairperson, _totalSupply);
     }
     
     function getConversionFee(address ad) public view returns (uint8){
@@ -245,21 +269,31 @@ contract SocialToken is ERC20Interface, Owned, Foundation, TiersOfConversion {
         return (100 - (users[ad].tier * 20))/4;
     }
     
-    function addToWhitelist(address add) public onlyFoundation {
-        whitelisted[add] = true;
-        users[add].joinedTimestamp = block.timestamp;
-        users[add].tier = 1;
+    function addToWhitelist(address toAdd) public onlyFoundation {
+        require(blacklisted[toAdd] == false);
+        whitelisted[toAdd] = true;
+        users[toAdd].joinedTimestamp = block.timestamp;
+        users[toAdd].tier = 1;
+    }
+    
+        
+    function removeFromWhitelist(address toRemove) public onlyFoundation {
+        whitelisted[toRemove] = false;
+    }
+    
+    function addToBlackList(address toAdd) public onlyChairperson {
+        blacklisted[toAdd] = true;
     }
 
-    function updateSupply(uint newSupply) public onlyFoundation {
+    function updateSupply(uint newSupply) public onlyChairperson {
         require (newSupply > _totalSupply);
-        balances[owner] = balances[owner].add(newSupply - _totalSupply);
+        balances[chairperson] = balances[chairperson].add(newSupply - _totalSupply);
         _totalSupply = newSupply;
     }   
     
-    function burn(uint numberOfTokens) public onlyOwner {
-        require(balances[owner] > numberOfTokens);
-        balances[owner] = balances[owner].sub(numberOfTokens);
+    function burn(uint numberOfTokens) public onlyChairperson {
+        require(balances[chairperson] > numberOfTokens);
+        balances[chairperson] = balances[chairperson].sub(numberOfTokens);
     }
 
     function totalSupply() public view returns (uint) {
@@ -271,10 +305,10 @@ contract SocialToken is ERC20Interface, Owned, Foundation, TiersOfConversion {
     }
 
     function transfer(address to, uint tokens) public returns (bool success) {
-        require (whitelisted[to]);
+        require (whitelisted[to] || isFoundation[to]);
         balances[msg.sender] = balances[msg.sender].sub(tokens);
         balances[to] = balances[to].add(tokens);
-        require (balances[to] <= cap || isOwner[to]);
+        require (balances[to] <= cap || isFoundation[to]);
         emit Transfer(msg.sender, to, tokens);
         return true;
     }
@@ -287,11 +321,11 @@ contract SocialToken is ERC20Interface, Owned, Foundation, TiersOfConversion {
     }
 
     function transferFrom(address from, address to, uint tokens) public returns (bool success) {
-        require (whitelisted[to]);
+        require (whitelisted[to] || isFoundation[to]);
         balances[from] = balances[from].sub(tokens);
         allowed[from][msg.sender] = allowed[from][msg.sender].sub(tokens);
         balances[to] = balances[to].add(tokens);
-        require (balances[to] <= cap || isOwner[to]);
+        require (balances[to] <= cap || isFoundation[to]);
         emit Transfer(from, to, tokens);
         return true;
     }
@@ -311,7 +345,7 @@ contract SocialToken is ERC20Interface, Owned, Foundation, TiersOfConversion {
         revert();
     }
 
-    function transferAnyERC20Token(address tokenAddress, uint tokens) public onlyOwner returns (bool success) {
-        return ERC20Interface(tokenAddress).transfer(owner, tokens);
+    function transferAnyERC20Token(address tokenAddress, uint tokens) public onlyChairperson returns (bool success) {
+        return ERC20Interface(tokenAddress).transfer(chairperson, tokens);
     }
 }
