@@ -3,7 +3,6 @@ pragma solidity ^0.5.0;
 import "./SafeMath.sol";
 import "./ApproveCallAndFallBack.sol";
 import "./ERC20Interface.sol";
-import "./Owned.sol";
 import "./Foundation.sol";
 import "./TiersOfConversion.sol";
 
