@@ -1,11 +1,23 @@
 contract Owned {
-    address public chairperson;
-    address public newOwner;
-    address public nextInLine;
 
+    // CURRENT CHAIRPERSON SUCCESSION SYSTEM IS WEAK - FIX BEFORE USING
+    
+    // Chairperson has more permissions than any other address
+    address public chairperson;
+    
+    // Used to transfer chairperson rights
+    address public newOwner;
+    
+    // nextInLine becomes chairperson if chairperson is voted out
+    address public nextInLine;
+    
+    
     event OwnershipTransferred(address indexed _from, address indexed _to);
 
+
     constructor(address _chairperson, address _nextInLine) public {
+    
+        // Requires that the contract is set-up by a third-party for a more secure/democratic process
         require (msg.sender != _chairperson);
         chairperson = _chairperson;
         nextInLine = _nextInLine;
@@ -16,10 +28,13 @@ contract Owned {
         _;
     }
 
+    // Appoint new chairperson
     function transferOwnership(address _newOwner) public onlyChairperson {
         newOwner = _newOwner;
     }
     
+    
+    // Accept chairpersonship
     function acceptOwnership() public {
         require(msg.sender == newOwner);
         emit OwnershipTransferred(chairperson, newOwner);
@@ -27,6 +42,7 @@ contract Owned {
         newOwner = address(0);
     }
     
+    // Set nextInLine
     function selectNextInLine(address _ad) public {
         require(msg.sender == nextInLine);
         nextInLine = _ad;
