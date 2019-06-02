@@ -73,6 +73,8 @@ contract Foundation is Owned {
     mapping(address => uint8) public votesToAdd;
     mapping(address => uint8) public votesToRemove;
     
+    // Mechanism keeps track of all addresses that have been voted on
+    // This allows for removing the votes of members that are expelled since mappings are not iterable
     address[] public addressesVotedOn;
 
     uint8 public numberOfVoters;
@@ -89,8 +91,11 @@ contract Foundation is Owned {
         // Prevent user from voting again
         hasVotedToAdd[msg.sender][_ad] = true;
         
+        // Update tracking of distinct addresses undergoing election
         if (votesToAdd[_ad] == uint8(0)) {
             addressesVotedOn.push(_ad);
+            
+        // Election process resets after 15 distinct addresses have been voted on
         if (addressesVotedOn.length == 15) {
                 reset();
             }
@@ -99,10 +104,19 @@ contract Foundation is Owned {
         enoughVotesToAdd(_ad);
     }
     
+    // Vote to remove a member of the Foundation
     function voteToRemove(address _ad) public onlyFoundation {
+    
+        // msg.sender must not have voted to remove this address yet
         require(hasVotedToRemove[msg.sender][_ad] == false);
+        
+        // Address to be removed must already be part of the foundation
         require(isFoundation[_ad]);
+        
+        // Prevents user from voting again
         hasVotedToRemove[msg.sender][_ad] = true;
+        
+        // Update tracking of distinct addresses undergoing election
         if (votesToRemove[_ad] == uint8(0)) {
             addressesVotedOn.push(_ad);
         if (addressesVotedOn.length == 15) {
@@ -113,18 +127,24 @@ contract Foundation is Owned {
         enoughVotesToRemove(_ad);
     } 
     
+    // Remove your vote for a given address - fluid election allows for mind changes
     function removeMyVote(address _ad, uint8 _choice) public onlyFoundation {
+    
+        // Remove a vote to add a member
         if (_choice == 0) {
             require(hasVotedToAdd[msg.sender][_ad]);
             hasVotedToAdd[msg.sender][_ad] = false;
             votesToAdd[_ad]--;
         }
+        
+        // Remove your vote to remove a member
         if (_choice == 1) {
             require(hasVotedToRemove[msg.sender][_ad]);
             hasVotedToRemove[msg.sender][_ad] = false;
             votesToRemove[_ad]--;
         }
     }
+    
     
     function enoughVotesToAdd(address _ad) internal {
         if (votesToAdd[_ad] * 2 > numberOfVoters) {
@@ -138,7 +158,7 @@ contract Foundation is Owned {
         if (votesToRemove[_ad] * 2 > numberOfVoters) {
             numberOfVoters -= 1;
             isFoundation[_ad] = false;
-            removeOwnerVotes(_ad);
+            removeMemberVotes(_ad);
             if (_ad == chairperson) {
                 chairperson = nextInLine;
                 nextInLine = msg.sender;
@@ -150,10 +170,12 @@ contract Foundation is Owned {
         else { }
     }
     
-    function getOwners(address _ad) external view returns(bool) {
+    // Informs other contracts who is in the Foundation
+    function isFoundationMember(address _ad) external view returns(bool) {
         return isFoundation[_ad];
     }
     
+    // Resets election process
     function reset() internal {
         for (uint i = 0; i < addressesVotedOn.length; i++) {
             votesToAdd[addressesVotedOn[i]] = 0;
@@ -162,7 +184,8 @@ contract Foundation is Owned {
         }
     }
     
-    function removeOwnerVotes(address _ad) internal {
+    // Removes the votes for all addresses a member voted on before being removed from the Foundation
+    function removeMemberVotes(address _ad) internal {
         address a;
         for (uint i = 0; i < addressesVotedOn.length; i++) {
             a = addressesVotedOn[i];
