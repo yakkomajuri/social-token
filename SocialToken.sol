@@ -8,12 +8,7 @@ import "./TiersOfConversion.sol";
 
 
 contract SocialToken is ERC20Interface, Foundation, TiersOfConversion {
-    
-    modifier onlyChairperson() {  
-        require(msg.sender == chairperson);
-        _;
-    }
-    
+
     using SafeMath for uint;
 
     string public symbol;
@@ -24,7 +19,18 @@ contract SocialToken is ERC20Interface, Foundation, TiersOfConversion {
 
     mapping(address => uint) balances;
     mapping(address => mapping(address => uint)) allowed;
+    
+// ----------------------- BEGINNING OF MODIFICATIONS TO STD ERC20 CONTRACT --------------------------------
+    
+    modifier onlyChairperson() {  
+        require(msg.sender == chairperson);
+        _;
+    }
+    
+    // Only whitelisted addresses can receive tokens
     mapping(address => bool) whitelisted;
+    
+    // Blacklisted addresses can never use the system again
     mapping(address => bool) blacklisted;
 
     constructor() public {
@@ -32,41 +38,65 @@ contract SocialToken is ERC20Interface, Foundation, TiersOfConversion {
         name = "Social Token";
         decimals = 18;
         _totalSupply = 1000000 * 10**uint(decimals);
+        
+        // All tokens initially assigned to Chairperson
         balances[chairperson] = _totalSupply;
         emit Transfer(address(0), chairperson, _totalSupply);
     }
     
+    // Returns the fee for a user based on the respective Tier of Conversion
+    // Useful to inform the backend of the conversion app
     function getConversionFee(address ad) public view returns (uint8){
+        
+        // Fee is 0% for Tier 5
         if (users[ad].tier == 5) return 0;
+        
+        // Fee decreases linearly accross tiers from 20% to 0%
         return (100 - (users[ad].tier * 20))/4;
     }
     
+    // Foundation members can add addresses to the whitelist
     function addToWhitelist(address toAdd) public onlyFoundation {
+    
+        // Make sure address is not blacklisted
         require(blacklisted[toAdd] == false);
+        
+        // Add to whitelist, set-up user's joining time
         whitelisted[toAdd] = true;
         users[toAdd].joinedTimestamp = block.timestamp;
         users[toAdd].tier = 1;
     }
     
-        
+    // Removing an address from the whitelist can be done by any foundation member
+    // Removing from whitelist does not reset time joined in case of malicious action
     function removeFromWhitelist(address toRemove) public onlyFoundation {
         whitelisted[toRemove] = false;
     }
     
+    // Only Chairperson can blacklist addresses
     function addToBlackList(address toAdd) public onlyChairperson {
         blacklisted[toAdd] = true;
     }
 
+    // Chairperson can emit more tokens if collateral > current supply
     function updateSupply(uint newSupply) public onlyChairperson {
         require (newSupply > _totalSupply);
+        
+        // Chairperson gets additional tokens
         balances[chairperson] = balances[chairperson].add(newSupply - _totalSupply);
         _totalSupply = newSupply;
     }   
     
+    // Burning is used to control the overcollateral
     function burn(uint numberOfTokens) public onlyChairperson {
+    
+        // Burns can only happen from the Chairperson's account - circulating supply never affected
         require(balances[chairperson] > numberOfTokens);
         balances[chairperson] = balances[chairperson].sub(numberOfTokens);
     }
+
+
+// ----------------------- END OF MODIFICATIONS TO STD ERC20 CONTRACT --------------------------------
 
     function totalSupply() public view returns (uint) {
         return _totalSupply.sub(balances[address(0)]);
