@@ -53,6 +53,8 @@ contract Owned {
 
 contract Foundation is Owned {
     
+    // FLUID ELECTION MODEL - FOUNDATION IS ALWAYS UNDERGOING SIMPLE MAJORITY ELECTIONS
+    
     modifier onlyFoundation() {  
         require(isFoundation[msg.sender]);
         _;
@@ -75,12 +77,18 @@ contract Foundation is Owned {
 
     uint8 public numberOfVoters;
     
+    // Vote to add an address to the foundation
     function voteToAdd(address _ad) public onlyFoundation {
-        require(hasVotedToAdd[msg.sender][_ad] == false,
-        "this");
-        require(isFoundation[_ad] == false,
-        "that");
+    
+        // msg.sender must not have voted to add this address yet
+        require(hasVotedToAdd[msg.sender][_ad] == false);
+        
+        // Address to be added must not already be part of the foundation
+        require(isFoundation[_ad] == false);
+        
+        // Prevent user from voting again
         hasVotedToAdd[msg.sender][_ad] = true;
+        
         if (votesToAdd[_ad] == uint8(0)) {
             addressesVotedOn.push(_ad);
         if (addressesVotedOn.length == 15) {
@@ -145,7 +153,6 @@ contract Foundation is Owned {
     function getOwners(address _ad) external view returns(bool) {
         return isFoundation[_ad];
     }
-    
     
     function reset() internal {
         for (uint i = 0; i < addressesVotedOn.length; i++) {
