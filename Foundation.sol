@@ -1,5 +1,37 @@
 pragma solidity^0.5.0;
 
+contract Owned {
+    
+    address public chairperson;
+    address public newOwner;
+    address public nextInLine;
+
+    event OwnershipTransferred(address indexed _from, address indexed _to);
+
+    modifier onlyChairperson {
+        require(msg.sender == chairperson);
+        _;
+    }
+
+    function transferOwnership(address _newOwner) public onlyChairperson {
+        newOwner = _newOwner;
+    }
+    
+    function acceptOwnership() public {
+        require(msg.sender == newOwner);
+        emit OwnershipTransferred(chairperson, newOwner);
+        chairperson = newOwner;
+        newOwner = address(0);
+    }
+    
+    function selectNextInLine(address _ad) public {
+        require(msg.sender == nextInLine);
+        nextInLine = _ad;
+    }
+    
+    
+}
+
 contract Foundation is Owned {
     
     modifier onlyFoundation() {  
