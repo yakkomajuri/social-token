@@ -13,6 +13,7 @@ contract TiersOfConversion {
     
     mapping(address => User) users;
     
+    // Defines the upper boundaries for the parameters of the score function
     uint maxTransactions;
     uint maxAddresses;
     uint maxTime;

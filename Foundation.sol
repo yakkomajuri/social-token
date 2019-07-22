@@ -1,29 +1,39 @@
 pragma solidity^0.5.0;
 
+// WARNING: Current Chairperson Succession Mechanism is Weak - Do not use in production
 contract PresidedByChairperson {
     
+    // Chairperson has more permissions than any other address
     address public chairperson;
-    address public newOwner;
+
+    // Used to transfer chairperson rights
+    address public newChairperson;
+
+    // nextInLine becomes chairperson if chairperson is voted out
     address public nextInLine;
 
-    event OwnershipTransferred(address indexed _from, address indexed _to);
+    event LogChairpersonshipTransfer(address indexed _from, address indexed _to);
 
+    // Chairperson has all 'powers' assigned to Foundation members and more
     modifier onlyChairperson {
         require(msg.sender == chairperson);
         _;
     }
 
-    function transferOwnership(address _newOwner) public onlyChairperson {
-        newOwner = _newOwner;
+    // Appoint new chairperson
+    function transferChairpersonship(address _newChairperson) public onlyChairperson {
+        newChairperson = _newChairperson;
     }
     
-    function acceptOwnership() public {
-        require(msg.sender == newOwner);
-        emit OwnershipTransferred(chairperson, newOwner);
-        chairperson = newOwner;
-        newOwner = address(0);
+    // Accept chairpersonship
+    function acceptChairpersonship() public {
+        require(msg.sender == newChairperson);
+        emit LogChairpersonshipTransfer(chairperson, newChairperson);
+        chairperson = newChairperson;
+        newChairperson = address(0);
     }
     
+    // Set nextInLine
     function selectNextInLine(address _ad) public {
         require(msg.sender == nextInLine);
         nextInLine = _ad;
@@ -36,7 +46,7 @@ contract PresidedByChairperson {
 contract Foundation is PresidedByChairperson {
 
     // Keeps track of current Foundation members
-    mapping(address => bool) isFoundation;
+    mapping(address => bool) private isFoundation;
     
     // Prevents a double-vote to add an address to the Foundation
     mapping(address => mapping(address => bool)) hasVotedToAdd;
@@ -50,7 +60,8 @@ contract Foundation is PresidedByChairperson {
     // Number of votes received by an address to be removed from the Foundation
     mapping(address => uint8) public votesToRemove;
     
-    // Used to remove votes of excluded Foundation members
+    // Mechanism keeps track of all addresses that have been voted on
+    // This allows for removing the votes of members that are expelled since mappings are not iterable
     address[] public addressesVotedOn;
 
     // Current number of Foundation members
@@ -62,14 +73,21 @@ contract Foundation is PresidedByChairperson {
         _;
     }
     
-    function voteToAdd(address _ad) public onlyFoundation {
+    // Vote to add an address to the foundation
+    function voteToAdd(address _ad) external onlyFoundation {
         require(hasVotedToAdd[msg.sender][_ad] == false,
-        "this");
-        require(isFoundation[_ad] == false,
-        "that");
+        "Member has already voted to add this address");
+        require(!isFoundation[_ad],
+        "Address is not already a Foundation member");
+
+        // Prevent address from voting again
         hasVotedToAdd[msg.sender][_ad] = true;
+
+        // Update tracking of distinct addresses undergoing election
         if (votesToAdd[_ad] == uint8(0)) {
             addressesVotedOn.push(_ad);
+
+        // Election process resets after 15 distinct addresses have been voted on
         if (addressesVotedOn.length == 15) {
                 reset();
             }
@@ -78,10 +96,17 @@ contract Foundation is PresidedByChairperson {
         enoughVotesToAdd(_ad);
     }
     
-    function voteToRemove(address _ad) public onlyFoundation {
-        require(hasVotedToRemove[msg.sender][_ad] == false);
-        require(isFoundation[_ad]);
+    // Vote to remove a member of the Foundation
+    function voteToRemove(address _ad) external onlyFoundation {
+        require(hasVotedToRemove[msg.sender][_ad] == false,
+        "Member has already voted to remove this address");
+        require(isFoundation[_ad],
+        "Address is not a Foundation member");
+
+        // Prevents user from voting again
         hasVotedToRemove[msg.sender][_ad] = true;
+
+        // Update tracking of distinct addresses undergoing election
         if (votesToRemove[_ad] == uint8(0)) {
             addressesVotedOn.push(_ad);
         if (addressesVotedOn.length == 15) {
@@ -92,12 +117,17 @@ contract Foundation is PresidedByChairperson {
         enoughVotesToRemove(_ad);
     } 
     
-    function removeMyVote(address _ad, uint8 _choice) public onlyFoundation {
+    // Remove your vote for a given address - fluid consensus allows for a change of mind
+    function removeMyVote(address _ad, uint8 _choice) external onlyFoundation {
+        
+        // Remove a vote to add a member
         if (_choice == 0) {
             require(hasVotedToAdd[msg.sender][_ad]);
             hasVotedToAdd[msg.sender][_ad] = false;
             votesToAdd[_ad]--;
         }
+    
+        // Remove your vote to remove a member
         if (_choice == 1) {
             require(hasVotedToRemove[msg.sender][_ad]);
             hasVotedToRemove[msg.sender][_ad] = false;
@@ -105,6 +135,7 @@ contract Foundation is PresidedByChairperson {
         }
     }
     
+    // If a simple majority is reached after any given vote, add address to Foundation
     function enoughVotesToAdd(address _ad) internal {
         if (votesToAdd[_ad] * 2 > numberOfVoters) {
             numberOfVoters += 1;
@@ -112,7 +143,8 @@ contract Foundation is PresidedByChairperson {
         }
         else { }
     }
-    
+
+    // If a simple majority is reached after any given vote, remove address from Foundation
     function enoughVotesToRemove(address _ad) internal {
         if (votesToRemove[_ad] * 2 > numberOfVoters) {
             numberOfVoters -= 1;
@@ -128,12 +160,13 @@ contract Foundation is PresidedByChairperson {
         }
         else { }
     }
-    
-    function getOwners(address _ad) external view returns(bool) {
+
+    // Informs other contracts who is in the Foundation
+    function isAddressInFoundation(address _ad) external view returns(bool) {
         return isFoundation[_ad];
     }
     
-    
+    // Resets election process
     function reset() internal {
         for (uint i = 0; i < addressesVotedOn.length; i++) {
             votesToAdd[addressesVotedOn[i]] = 0;
@@ -141,8 +174,9 @@ contract Foundation is PresidedByChairperson {
             delete addressesVotedOn[i];
         }
     }
-    
-    function removeOwnerVotes(address _ad) internal {
+
+    // Removes the votes for all addresses a member voted on before being removed from the Foundation
+    function removeMemberVotes(address _ad) internal {
         address a;
         for (uint i = 0; i < addressesVotedOn.length; i++) {
             a = addressesVotedOn[i];

@@ -6,24 +6,30 @@ import "./Foundation.sol";
 import "./TiersOfConversion.sol";
 
 contract SocialToken is ERC20Interface, Foundation, TiersOfConversion {
-    
-    modifier onlyChairperson() {  
-        require(msg.sender == chairperson);
-        _;
-    }
-    
+
     using SafeMath for uint;
 
+    // Token Specifications
     string public symbol;
     string public  name;
     uint8 public decimals;
     uint private _totalSupply;
+
+    // Cap on the number of tokens an address can hold at a given time
+    // Cap is not valid for Foundation addresses 
     uint public cap;
 
+    // Keeps track of balances and 'delegated' balances (allowance)
     mapping(address => uint) balances;
     mapping(address => mapping(address => uint)) allowed;
+
+
+    // Only whitelisted addresses can receive tokens
     mapping(address => bool) whitelisted;
+
+    // Blacklisted addresses can never use the system again
     mapping(address => bool) blacklisted;
+
 
     constructor(
         string memory _name, 
@@ -46,7 +52,11 @@ contract SocialToken is ERC20Interface, Foundation, TiersOfConversion {
         }
         chairperson = _foundation[0];
         nextInLine = _foundation[1];
+
+        // All tokens initially assigned to Chairperson
         balances[chairperson] = _totalSupply;
+
+        // 'Safety' on requires that the Chairperson not be the creator of the contract
         if (_safety) {
             require (msg.sender != chairperson);
         }
@@ -57,73 +67,107 @@ contract SocialToken is ERC20Interface, Foundation, TiersOfConversion {
         emit Transfer(address(0), chairperson, _totalSupply);
     }
     
+    // Returns the fee for a user based on the respective Tier of Conversion
+    // Useful to inform the backend of the conversion app
     function getConversionFee(address ad) public view returns (uint8){
+        // Fee is 0% for Tier 5
         if (users[ad].tier == 5) return 0;
+
+        // Fee decreases linearly accross tiers from 20% to 0%
         return (100 - (users[ad].tier * 20))/4;
     }
     
-    function addToWhitelist(address toAdd) public onlyFoundation {
-        require(blacklisted[toAdd] == false);
+    // Foundation members can add addresses to the whitelist
+    function addToWhitelist(address toAdd) external onlyFoundation {
+        require(blacklisted[toAdd] == false,
+        "Address is blacklisted");
+
+        // Add to whitelist, set-up user's joining time and initial tier
         whitelisted[toAdd] = true;
         users[toAdd].joinedTimestamp = block.timestamp;
         users[toAdd].tier = 1;
     }
     
-        
-    function removeFromWhitelist(address toRemove) public onlyFoundation {
+    // Removing an address from the whitelist can be done by any foundation member
+    // Removing from whitelist does not reset time joined in case of malicious action
+    function removeFromWhitelist(address toRemove) external onlyFoundation {
         whitelisted[toRemove] = false;
-    }
-    
-    function addToBlackList(address toAdd) public onlyChairperson {
+    } 
+
+    // Only Chairperson can blacklist addresses
+    function addToBlackList(address toAdd) external onlyChairperson {
         blacklisted[toAdd] = true;
     }
 
-    function updateSupply(uint newSupply) public onlyChairperson {
+    // Chairperson can emit more tokens if collateral > current supply
+    function updateSupply(uint newSupply) external onlyChairperson {
         require (newSupply > _totalSupply);
+
+        // Chairperson gets additional tokens
         balances[chairperson] = balances[chairperson].add(newSupply - _totalSupply);
+        
         _totalSupply = newSupply;
     }   
     
-    function burn(uint numberOfTokens) public onlyChairperson {
-        require(balances[chairperson] > numberOfTokens);
+    // Burning is used to control the overcollateral
+    function burn(uint numberOfTokens) external onlyChairperson {
+        // Burns can only happen from the Chairperson's account - circulating supply never affected
+        require(balances[chairperson] > numberOfTokens,
+        "Chairperson does not have enough tokens to burn");
         balances[chairperson] = balances[chairperson].sub(numberOfTokens);
     }
 
-    function totalSupply() public view returns (uint) {
+   function isWhitelisted(address _ad) external view returns(bool) {
+        return whitelisted[_ad];
+    }
+
+    // STANDARD ERC-20 FUNCTIONS ---------------------------------------
+
+    function totalSupply() external view returns (uint) {
         return _totalSupply.sub(balances[address(0)]);
     }
 
-    function balanceOf(address tokenOwner) public view returns (uint balance) {
+    function balanceOf(address tokenOwner) external view returns (uint balance) {
         return balances[tokenOwner];
     }
 
-    function transfer(address to, uint tokens) public returns (bool success) {
-        require (whitelisted[to] || isFoundation[to]);
+    function transfer(address to, uint tokens) external returns (bool success) {
+        // Receiving address must be whitelisted or be a Foundation member
+        require (whitelisted[to] || isFoundation[to],
+        "Address is not yet accredited to use the system");
         balances[msg.sender] = balances[msg.sender].sub(tokens);
         balances[to] = balances[to].add(tokens);
-        require (balances[to] <= cap || isFoundation[to]);
+
+        // Checks that the receiving address will not be over the cap after the transfer
+        require (balances[to] <= cap || isFoundation[to],
+        "Address limit reached");
         emit Transfer(msg.sender, to, tokens);
         return true;
     }
 
 
-    function approve(address spender, uint tokens) public returns (bool success) {
+    function approve(address spender, uint tokens) external returns (bool success) {
         allowed[msg.sender][spender] = tokens;
         emit Approval(msg.sender, spender, tokens);
         return true;
     }
 
-    function transferFrom(address from, address to, uint tokens) public returns (bool success) {
-        require (whitelisted[to] || isFoundation[to]);
+    function transferFrom(address from, address to, uint tokens) external returns (bool success) {
+        // Receiving address must be whitelisted or be a Foundation member
+        require (whitelisted[to] || isFoundation[to],
+        "Address is not yet accredited to use the system");
         balances[from] = balances[from].sub(tokens);
         allowed[from][msg.sender] = allowed[from][msg.sender].sub(tokens);
         balances[to] = balances[to].add(tokens);
-        require (balances[to] <= cap || isFoundation[to]);
+
+        // Checks that the receiving address will not be over the cap after the transfer
+        require (balances[to] <= cap || isFoundation[to],
+        "Address limit reached");
         emit Transfer(from, to, tokens);
         return true;
     }
 
-    function allowance(address tokenOwner, address spender) public view returns (uint remaining) {
+    function allowance(address tokenOwner, address spender) external view returns (uint remaining) {
         return allowed[tokenOwner][spender];
     }
 
@@ -134,15 +178,13 @@ contract SocialToken is ERC20Interface, Foundation, TiersOfConversion {
         return true;
     }
 
-    function () external payable {
-        revert();
-    }
-
     function transferAnyERC20Token(address tokenAddress, uint tokens) public onlyChairperson returns (bool success) {
         return ERC20Interface(tokenAddress).transfer(chairperson, tokens);
     }
-    
-    function isWhitelisted(address _ad) external view returns(bool) {
-        return whitelisted[_ad];
+
+    // Fallback function - do not accept transfers
+    function () external payable {
+        revert();
     }
 }
+
