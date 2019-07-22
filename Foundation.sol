@@ -32,7 +32,7 @@ contract PresidedByChairperson {
     
 }
 
-
+// Fluid Consensus model - Foundation is always undergoing election
 contract Foundation is PresidedByChairperson {
 
     // Keeps track of current Foundation members
