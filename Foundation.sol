@@ -1,6 +1,6 @@
 pragma solidity^0.5.0;
 
-contract Owned {
+contract PresidedByChairperson {
     
     address public chairperson;
     address public newOwner;
@@ -32,22 +32,35 @@ contract Owned {
     
 }
 
-contract Foundation is Owned {
+
+contract Foundation is PresidedByChairperson {
+
+    // Keeps track of current Foundation members
+    mapping(address => bool) isFoundation;
     
+    // Prevents a double-vote to add an address to the Foundation
+    mapping(address => mapping(address => bool)) hasVotedToAdd;
+    
+    // Prevents a double-vote to remove an address to the Foundation
+    mapping(address => mapping(address => bool)) hasVotedToRemove;
+    
+    // Number of votes received by an address to become a part of the Foundation
+    mapping(address => uint8) public votesToAdd;
+    
+    // Number of votes received by an address to be removed from the Foundation
+    mapping(address => uint8) public votesToRemove;
+    
+    // Used to remove votes of excluded Foundation members
+    address[] public addressesVotedOn;
+
+    // Current number of Foundation members
+    uint8 public numberOfVoters;
+    
+    // Functionalities only available to Foundation members
     modifier onlyFoundation() {  
         require(isFoundation[msg.sender]);
         _;
     }
-
-    mapping(address => bool) isFoundation;
-    mapping(address => mapping(address => bool)) hasVotedToAdd;
-    mapping(address => mapping(address => bool)) hasVotedToRemove;
-    mapping(address => uint8) public votesToAdd;
-    mapping(address => uint8) public votesToRemove;
-    
-    address[] public addressesVotedOn;
-
-    uint8 public numberOfVoters;
     
     function voteToAdd(address _ad) public onlyFoundation {
         require(hasVotedToAdd[msg.sender][_ad] == false,
