@@ -127,11 +127,11 @@ contract SocialToken is ERC20Interface, Foundation, TiersOfConversion {
         return _totalSupply.sub(balances[address(0)]);
     }
 
-    function balanceOf(address tokenOwner) external view returns (uint balance) {
+    function balanceOf(address tokenOwner) public view returns (uint balance) {
         return balances[tokenOwner];
     }
 
-    function transfer(address to, uint tokens) external returns (bool success) {
+    function transfer(address to, uint tokens) public returns (bool success) {
         // Receiving address must be whitelisted or be a Foundation member
         require (whitelisted[to] || isFoundation[to],
         "Address is not yet accredited to use the system");
@@ -146,13 +146,13 @@ contract SocialToken is ERC20Interface, Foundation, TiersOfConversion {
     }
 
 
-    function approve(address spender, uint tokens) external returns (bool success) {
+    function approve(address spender, uint tokens) public returns (bool success) {
         allowed[msg.sender][spender] = tokens;
         emit Approval(msg.sender, spender, tokens);
         return true;
     }
 
-    function transferFrom(address from, address to, uint tokens) external returns (bool success) {
+    function transferFrom(address from, address to, uint tokens) public returns (bool success) {
         // Receiving address must be whitelisted or be a Foundation member
         require (whitelisted[to] || isFoundation[to],
         "Address is not yet accredited to use the system");
@@ -167,7 +167,7 @@ contract SocialToken is ERC20Interface, Foundation, TiersOfConversion {
         return true;
     }
 
-    function allowance(address tokenOwner, address spender) external view returns (uint remaining) {
+    function allowance(address tokenOwner, address spender) public view returns (uint remaining) {
         return allowed[tokenOwner][spender];
     }
 
