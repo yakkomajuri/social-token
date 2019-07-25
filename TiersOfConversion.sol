@@ -14,9 +14,9 @@ contract TiersOfConversion {
     mapping(address => User) users;
     
     // Defines the upper boundaries for the parameters of the score function
-    uint maxTransactions;
-    uint maxAddresses;
-    uint maxTime;
+    uint public maxTransactions;
+    uint public maxAddresses;
+    uint public maxTime;
     
     // Tier calculated after every transaction --> not efficient, model must be improved
     // Suggestion: wallet keeps track of tier off-chain and calls to update once as the tier increases
