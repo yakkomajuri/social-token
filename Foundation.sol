@@ -46,7 +46,7 @@ contract PresidedByChairperson {
 contract Foundation is PresidedByChairperson {
 
     // Keeps track of current Foundation members
-    mapping(address => bool) private isFoundation;
+    mapping(address => bool) public isFoundation;
     
     // Prevents a double-vote to add an address to the Foundation
     mapping(address => mapping(address => bool)) hasVotedToAdd;
