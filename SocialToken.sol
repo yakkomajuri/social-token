@@ -109,6 +109,12 @@ contract SocialToken is ERC20Interface, Foundation, TiersOfConversion {
         _totalSupply = newSupply;
     }   
     
+    // Chairperson can change the cap on token ownership
+    // Current token holders with balance > _newCap will not have tokens burnt
+    function updateCap(uint _newCap) external onlyChairperson {
+        cap = _newCap;
+    }
+    
     // Burning is used to control the overcollateral
     function burn(uint numberOfTokens) external onlyChairperson {
         // Burns can only happen from the Chairperson's account - circulating supply never affected
